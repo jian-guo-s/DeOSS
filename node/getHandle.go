@@ -257,7 +257,7 @@ func (n *Node) getHandle(c *gin.Context) {
 						break
 					}
 
-					_, err = c.Writer.Write(buf[:n])
+					_, err = c.Writer.Write(buf[:index])
 					if err != nil {
 						// 处理错误
 						c.JSON(500, gin.H{"error": err.Error()})
