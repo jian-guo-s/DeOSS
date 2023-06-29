@@ -9,6 +9,7 @@ package node
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -238,11 +239,33 @@ func (n *Node) getHandle(c *gin.Context) {
 				log.Println("=================")
 				log.Println(filePath)
 				log.Println("=================")
-				c.File(filePath)
-				select {
-				case <-c.Request.Context().Done():
-					return
+				file, err := os.Open(filePath)
+				if err != nil {
+
 				}
+				defer file.Close()
+				c.Header("Content-Type", "application/octet-stream")
+				buf := make([]byte, 4096)
+				for {
+					index, err := file.Read(buf)
+					if err != nil && err != io.EOF {
+						// 处理错误
+						c.JSON(500, gin.H{"error": err.Error()})
+						return
+					}
+					if index == 0 {
+						break
+					}
+
+					_, err = c.Writer.Write(buf[:n])
+					if err != nil {
+						// 处理错误
+						c.JSON(500, gin.H{"error": err.Error()})
+						return
+					}
+					c.Writer.Flush()
+				}
+				return
 			}
 		}
 
