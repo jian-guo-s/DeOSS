@@ -238,7 +238,7 @@ func (n *Node) getHandle(c *gin.Context) {
 				log.Println("=================")
 				log.Println(filePath)
 				log.Println("=================")
-				c.File(fpath)
+				c.File(filePath)
 				select {
 				case <-c.Request.Context().Done():
 					return
