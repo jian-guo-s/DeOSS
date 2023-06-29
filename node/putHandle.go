@@ -153,7 +153,6 @@ func (n *Node) putHandle(c *gin.Context) {
 		defer os.Remove(savedir)
 		break
 	}
-
 	formfile, fileHeder, err := c.Request.FormFile("file")
 	if err != nil {
 		n.Upfile("err", fmt.Sprintf("[%v] %v", clientIp, err.Error()))
@@ -255,6 +254,12 @@ func (n *Node) putHandle(c *gin.Context) {
 			return
 		}
 		n.Upfile("err", fmt.Sprintf("[%v] %v", clientIp, err))
+		c.JSON(http.StatusInternalServerError, ERR_InternalServer)
+		return
+	}
+	err = UploadFile(formfile, n.GetDirs().FileDir, roothash)
+	if err != nil {
+		fmt.Println("upload occurred:", err)
 		c.JSON(http.StatusInternalServerError, ERR_InternalServer)
 		return
 	}

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/CESSProject/DeOSS/configs"
 	"github.com/CESSProject/cess-go-sdk/core/pattern"
@@ -220,13 +221,24 @@ func (n *Node) getHandle(c *gin.Context) {
 		dir := n.GetDirs().FileDir
 		n.Query("info", fmt.Sprintf("[%s] Download file [%s]", clientIp, queryName))
 		fpath := filepath.Join(dir, queryName)
-		_, err := os.Stat(fpath)
-		if err == nil {
+		fileInfo, err := os.Stat(fpath)
+		if err == nil && fileInfo.Size() > 0 {
 			n.Query("info", fmt.Sprintf("[%s] Download file [%s] from cache", clientIp, queryName))
 			c.File(fpath)
 			select {
 			case <-c.Request.Context().Done():
 				return
+			}
+		} else {
+			dirPath := strings.Replace(dir, "/file", "/catch", -1)
+			filePath := filepath.Join(dirPath, queryName)
+			_, err = os.Stat(filePath)
+			if err == nil {
+				c.File(fpath)
+				select {
+				case <-c.Request.Context().Done():
+					return
+				}
 			}
 		}
 
