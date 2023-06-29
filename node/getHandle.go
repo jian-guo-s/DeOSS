@@ -9,6 +9,7 @@ package node
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -234,6 +235,9 @@ func (n *Node) getHandle(c *gin.Context) {
 			filePath := filepath.Join(dirPath, queryName)
 			_, err = os.Stat(filePath)
 			if err == nil {
+				log.Println("=================")
+				log.Println(filePath)
+				log.Println("=================")
 				c.File(fpath)
 				select {
 				case <-c.Request.Context().Done():
