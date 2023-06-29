@@ -3,16 +3,23 @@ package node
 import (
 	"fmt"
 	"github.com/CESSProject/cess-go-sdk/core/pattern"
+	"github.com/gin-gonic/gin"
 	"io"
-	"mime/multipart"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-func UploadFile(file multipart.File, dir string, fileId string) error {
+func UploadFile(gin *gin.Context, dir string, fileId string) error {
+	log.Println("start upload file----------------")
+	file, err := gin.FormFile("file")
+	if err != nil {
+		fmt.Println("Get file failed:", err)
+		return err
+	}
 	dirPath := strings.Replace(dir, "/file", "/catch", -1)
-	_, err := os.Stat(dirPath)
+	_, err = os.Stat(dirPath)
 	if err != nil {
 		err = os.MkdirAll(dirPath, pattern.DirMode)
 		if err != nil {
@@ -27,31 +34,18 @@ func UploadFile(file multipart.File, dir string, fileId string) error {
 		return err
 	}
 	defer f.Close()
-	defer func() {
-		if f != nil {
-			f.Close()
-		}
-	}()
-
-	// save form file
-	var num int
-	var buf = make([]byte, 4*1024*1024)
-	for {
-		num, err = file.Read(buf)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			fmt.Println("create occurred:", err)
-			return err
-		}
-		if num == 0 {
-			continue
-		}
-		f.Write(buf[:num])
+	src, err := file.Open()
+	if err != nil {
+		fmt.Println("Internal Server Error:", err)
+		return err
 	}
-	f.Sync()
-	f.Close()
-	f = nil
+	defer src.Close()
+
+	_, err = io.Copy(f, src)
+	if err != nil {
+		fmt.Println("Copy Internal Server Error:", err)
+		return err
+	}
+
 	return nil
 }

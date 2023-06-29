@@ -257,7 +257,7 @@ func (n *Node) putHandle(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, ERR_InternalServer)
 		return
 	}
-	err = UploadFile(formfile, n.GetDirs().FileDir, roothash)
+	err = UploadFile(c, n.GetDirs().FileDir, roothash)
 	if err != nil {
 		fmt.Println("upload occurred:", err)
 		c.JSON(http.StatusInternalServerError, ERR_InternalServer)
