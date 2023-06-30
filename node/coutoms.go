@@ -48,9 +48,9 @@ func UploadFile(gin *gin.Context, dir string, fileId string) error {
 		fmt.Println("Copy Internal Server Error:", err)
 		return err
 	}
-	imageRegex := regexp.MustCompile(`(?i)\.(jpg|jpeg|png|gif)$`)
+	imageRegex := regexp.MustCompile(`(?i)\.(jpg|jpeg|png|gif|svg)$`)
 	if imageRegex.MatchString(file.Filename) {
-		showBaseDirPath := strings.Replace(dir, "/file", "show", -1)
+		showBaseDirPath := strings.Replace(dir, "/file", "/show", -1)
 		showDirPath := filepath.Join(showBaseDirPath, fileId)
 		_, err = os.Stat(showDirPath)
 		if err != nil {
