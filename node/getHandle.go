@@ -234,7 +234,7 @@ func (n *Node) getHandle(c *gin.Context) {
 		} else {
 			dirPath := strings.Replace(dir, "/file", "/catch", -1)
 			filePath := filepath.Join(dirPath, queryName)
-			_, err = os.Stat(filePath)
+			fileInfo, err = os.Stat(filePath)
 			if err == nil {
 				log.Println("=================")
 				log.Println(filePath)
@@ -245,6 +245,7 @@ func (n *Node) getHandle(c *gin.Context) {
 				}
 				defer file.Close()
 				c.Header("Content-Type", "application/octet-stream")
+				c.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
 				buf := make([]byte, 4096)
 				for {
 					index, err := file.Read(buf)
