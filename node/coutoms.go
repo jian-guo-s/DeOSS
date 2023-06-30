@@ -67,8 +67,14 @@ func UploadFile(gin *gin.Context, dir string, fileId string) error {
 			return err
 		}
 		defer showOut.Close()
+		fileOut, err := file.Open()
+		if err != nil {
+			fmt.Println("Internal Server Error:", err)
+			return err
+		}
+		defer fileOut.Close()
 		log.Println("start upload show file")
-		_, err = io.Copy(showOut, src)
+		_, err = io.Copy(showOut, fileOut)
 		if err != nil {
 			fmt.Println("Copy show Internal Server Error:", err)
 			return err
