@@ -1,0 +1,9 @@
+version: '3'
+services:
+  nginx:
+    image: deoss
+    volumes:
+      - /home/hamster/cess/workspace:/home/hamster/cess/workspace/
+    ports:
+      - 8080:8080
+      - 4001:4001
