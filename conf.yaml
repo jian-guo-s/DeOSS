@@ -2,8 +2,9 @@
 Rpc:
   - "wss://devnet-rpc.cess.cloud/ws/"
 # Bootstrap Nodes
+# _dnsaddr.bootstrap-kldr.cess.cloud
 Boot:
-  - "_dnsaddr.bootstrap-kldr.cess.cloud"
+  - "_dnsaddr.boot-kldr-devnet.cess.cloud"
 # Account mnemonic
 Mnemonic: "rigid skill print penalty edge exist cancel repair fury assault double deputy"
 # Service workspace
