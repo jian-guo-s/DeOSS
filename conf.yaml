@@ -9,7 +9,7 @@ Rpc:
 # _dnsaddr.bootstrap-kldr.cess.cloud   dev
 # _dnsaddr.boot-kldr-testnet.cess.cloud  test
 Boot:
-  - "_dnsaddr.bootstrap-kldr.cess.cloud"
+  - "_dnsaddr.boot-kldr-testnet.cess.cloud"
 # Account mnemonic
 Mnemonic: "rigid skill print penalty edge exist cancel repair fury assault double deputy"
 # Service workspace
