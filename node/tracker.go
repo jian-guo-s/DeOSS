@@ -70,7 +70,7 @@ func (n *Node) tracker(ch chan<- bool) {
 				}
 			}
 		}
-		time.Sleep(time.Minute)
+		time.Sleep(pattern.BlockInterval)
 	}
 }
 
@@ -250,11 +250,14 @@ func (n *Node) storageData(roothash string, segment []pattern.SegmentDataInfo, m
 	for i := 0; i < len(peerids); i++ {
 		addr, ok := n.GetPeer(peerids[i])
 		if !ok {
-			failed = true
-			n.Track("err", fmt.Sprintf("[%s] No assigned miner found: [%s] [%s]", roothash, accs[i], peerids[i]))
-			continue
+			addr, err = n.DHTFindPeer(peerids[i])
+			if err != nil {
+				failed = true
+				n.Track("err", fmt.Sprintf("[%s] No assigned miner found: [%s] [%s]", roothash, accs[i], peerids[i]))
+				continue
+			}
 		}
-		err = n.Connect(n.GetRootCtx(), addr)
+		err = n.Connect(n.GetCtxQueryFromCtxCancel(), addr)
 		if err != nil {
 			failed = true
 			n.Track("err", fmt.Sprintf("[%s] Connect to miner [%s] failed: [%s]", roothash, accs[i], err))
@@ -279,12 +282,14 @@ func (n *Node) storageData(roothash string, segment []pattern.SegmentDataInfo, m
 			err = n.WriteFileAction(addr.ID, roothash, fpath)
 			if err != nil {
 				failed = true
-				return errors.Wrapf(err, "[WriteFileAction]")
+				n.Track("err", fmt.Sprintf("[%s] [WriteFileAction] [%s] [%s] err: %v", roothash, accs[i], peerids[i], err))
+				break
 			}
+			n.Track("info", fmt.Sprintf("[%s] [%s] transfer to [%s] ", roothash, string(minerTaskList[i].Hash[j][:]), accs[i]))
 		}
 	}
 	if failed {
-		return errors.New("some storage nodes failed to transmit")
+		return errors.New("File storage failure")
 	}
 	return nil
 }

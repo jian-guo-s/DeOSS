@@ -8,10 +8,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/CESSProject/DeOSS/configs"
@@ -24,9 +25,10 @@ import (
 	sconfig "github.com/CESSProject/cess-go-sdk/config"
 	"github.com/CESSProject/cess-go-sdk/core/pattern"
 	sutils "github.com/CESSProject/cess-go-sdk/core/utils"
+	"github.com/CESSProject/p2p-go/config"
+	"github.com/CESSProject/p2p-go/out"
 	"github.com/howeyc/gopass"
-	"github.com/libp2p/go-libp2p/core/peer"
-	ma "github.com/multiformats/go-multiaddr"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -34,77 +36,77 @@ import (
 // which is used to start the deoss service.
 func cmd_run_func(cmd *cobra.Command, args []string) {
 	var (
-		registerFlag bool
-		err          error
-		logDir       string
-		dbDir        string
-		bootstrap    = make([]string, 0)
-		syncSt       pattern.SysSyncState
-		n            = node.New()
+		registerFlag   bool
+		err            error
+		logDir         string
+		dbDir          string
+		protocolPrefix string
+		syncSt         pattern.SysSyncState
+		n              = node.New()
 	)
 
 	// Building Profile Instances
 	n.Confile, err = buildConfigFile(cmd)
 	if err != nil {
-		log.Println(err)
+		out.Err(err.Error())
 		os.Exit(1)
 	}
 
 	signKey, err := sutils.CalcMD5(n.Confile.GetMnemonic())
 	if err != nil {
-		log.Println(err)
+		out.Err(err.Error())
 		os.Exit(1)
 	}
 
 	n.SetSignkey(signKey)
 
-	boot := n.Confile.GetBootNodes()
-	for _, v := range boot {
-		bootnodes, err := sutils.ParseMultiaddrs(v)
-		if err != nil {
-			continue
-		}
-		bootstrap = append(bootstrap, bootnodes...)
-		for _, v := range bootnodes {
-			log.Printf(fmt.Sprintf("bootstrap node: %v", v))
-			addr, err := ma.NewMultiaddr(v)
-			if err != nil {
-				continue
-			}
-			addrInfo, err := peer.AddrInfoFromP2pAddr(addr)
-			if err != nil {
-				continue
-			}
-			n.SavePeer(addrInfo.ID.Pretty(), *addrInfo)
+	boots := n.GetBootNodes()
+	for _, v := range boots {
+		if strings.Contains(v, "testnet") {
+			out.Tip("Test network")
+			protocolPrefix = config.TestnetProtocolPrefix
+			break
+		} else if strings.Contains(v, "mainnet") {
+			out.Tip("Main network")
+			protocolPrefix = config.MainnetProtocolPrefix
+			break
+		} else if strings.Contains(v, "devnet") {
+			out.Tip("Dev network")
+			protocolPrefix = config.DevnetProtocolPrefix
+			break
+		} else {
+			out.Tip("Unknown network")
 		}
 	}
 
 	// Build sdk
 	n.SDK, err = sdkgo.New(
+		context.Background(),
 		sconfig.CharacterName_Deoss,
 		sdkgo.ConnectRpcAddrs(n.GetRpcAddr()),
 		sdkgo.Mnemonic(n.GetMnemonic()),
 		sdkgo.TransactionTimeout(configs.TimeOut_WaitBlock),
 		sdkgo.Workspace(n.GetWorkspace()),
 		sdkgo.P2pPort(n.GetP2pPort()),
-		sdkgo.Bootnodes(bootstrap),
+		sdkgo.Bootnodes(n.GetBootNodes()),
+		sdkgo.ProtocolPrefix(protocolPrefix),
 	)
 	if err != nil {
-		log.Println(err)
+		out.Err(err.Error())
 		os.Exit(1)
 	}
 
 	for {
 		syncSt, err = n.SyncState()
 		if err != nil {
-			log.Println(err.Error())
+			out.Err(err.Error())
 			os.Exit(1)
 		}
 		if syncSt.CurrentBlock == syncSt.HighestBlock {
-			log.Println(fmt.Sprintf("Synchronization main chain completed: %d", syncSt.CurrentBlock))
+			out.Tip(fmt.Sprintf("Synchronization main chain completed: %d", syncSt.CurrentBlock))
 			break
 		}
-		log.Println(fmt.Sprintf("In the synchronization main chain: %d ...", syncSt.CurrentBlock))
+		out.Tip(fmt.Sprintf("In the synchronization main chain: %d ...", syncSt.CurrentBlock))
 		time.Sleep(time.Second * time.Duration(utils.Ternary(int64(syncSt.HighestBlock-syncSt.CurrentBlock)*6, 30)))
 	}
 
@@ -113,14 +115,14 @@ func cmd_run_func(cmd *cobra.Command, args []string) {
 		if err.Error() == pattern.ERR_Empty {
 			registerFlag = true
 		} else {
-			log.Println("Weak network signal or rpc service failure")
+			out.Err("Weak network signal or rpc service failure")
 			os.Exit(1)
 		}
 	}
 
 	_, _, err = n.Register(n.GetRoleName(), n.GetPeerPublickey(), "", 0)
 	if err != nil {
-		log.Println("Register or update err: ", err)
+		out.Err(fmt.Sprintf("Register or update err: %v", err))
 		os.Exit(1)
 	}
 
@@ -130,27 +132,25 @@ func cmd_run_func(cmd *cobra.Command, args []string) {
 
 	logDir, dbDir, n.TrackDir, err = buildDir(n.Workspace())
 	if err != nil {
-		log.Println("buildDir err: ", err)
+		out.Err(err.Error())
 		os.Exit(1)
 	}
 
 	// Build cache
 	n.Cache, err = buildCache(dbDir)
 	if err != nil {
-		log.Println(err)
+		out.Err(err.Error())
 		os.Exit(1)
 	}
 
 	// Build Log
 	n.Logger, err = buildLogs(logDir)
 	if err != nil {
-		log.Println(err)
+		out.Err(err.Error())
 		os.Exit(1)
 	}
 
-	if n.GetDiscoverSt() {
-		log.Println("Start node discovery service")
-	}
+	out.Tip(n.GetProtocolPrefix())
 
 	// run
 	n.Run()
@@ -163,15 +163,13 @@ func buildConfigFile(cmd *cobra.Command) (confile.Confile, error) {
 	if configpath1 != "" {
 		_, err := os.Stat(configpath1)
 		if err != nil {
-			log.Println(err)
-			os.Exit(1)
+			return nil, errors.Wrapf(err, "[Stat %s]", configpath1)
 		}
 		conFilePath = configpath1
 	} else if configpath2 != "" {
 		_, err := os.Stat(configpath2)
 		if err != nil {
-			log.Println(err)
-			os.Exit(1)
+			return nil, errors.Wrapf(err, "[Stat %s]", configpath2)
 		}
 		conFilePath = configpath2
 	} else {
@@ -181,27 +179,25 @@ func buildConfigFile(cmd *cobra.Command) (confile.Confile, error) {
 	cfg := confile.NewConfigfile()
 	err := cfg.Parse(conFilePath)
 	if err == nil {
-		return cfg, err
+		return cfg, nil
 	}
 
 	rpc, err := cmd.Flags().GetStringSlice("rpc")
 	if err != nil {
-		return cfg, err
+		return cfg, errors.Wrapf(err, "[cmd.Flags().GetStringSlice(\"rpc\")]")
 	}
 
 	if len(rpc) == 0 {
-		log.Println("Please specify the rpc address with --rpc")
-		os.Exit(1)
+		return cfg, errors.New("Please specify the rpc address with --rpc")
 	}
 	cfg.SetRpcAddr(rpc)
 
 	boot, err := cmd.Flags().GetStringSlice("boot")
 	if err != nil {
-		return cfg, err
+		return cfg, errors.Wrapf(err, "[cmd.Flags().GetStringSlice(\"boot\")]")
 	}
 	if len(boot) == 0 {
-		log.Println("Please specify the boot node address with --boot")
-		os.Exit(1)
+		return cfg, errors.New("Please specify the boot node address with --boot")
 	}
 	cfg.SetBootNodes(boot)
 
@@ -210,58 +206,54 @@ func buildConfigFile(cmd *cobra.Command) (confile.Confile, error) {
 		return cfg, err
 	}
 	if workspace == "" {
-		log.Println("Please specify the sorkspace with --ws")
-		os.Exit(1)
+		return cfg, errors.New("Please specify the sorkspace with --ws")
 	}
 	err = cfg.SetWorkspace(workspace)
 	if err != nil {
-		log.Println(err)
-		os.Exit(1)
+		return cfg, errors.Wrapf(err, "[SetWorkspace %s]", workspace)
 	}
 
 	http_port, err := cmd.Flags().GetInt("http_port")
 	if err != nil {
-		return cfg, err
+		return cfg, errors.Wrapf(err, "[cmd.Flags().GetInt(\"http_port\")]")
 	}
 
 	p2p_port, err := cmd.Flags().GetInt("p2p_port")
 	if err != nil {
-		return cfg, err
+		return cfg, errors.Wrapf(err, "[cmd.Flags().GetInt(\"p2p_port\")]")
 	}
 
 	err = cfg.SetHttpPort(http_port)
 	if err != nil {
-		log.Println(err)
-		os.Exit(1)
+		return cfg, errors.Wrapf(err, "[SetHttpPort %d]", http_port)
 	}
 	err = cfg.SetP2pPort(p2p_port)
 	if err != nil {
-		log.Println(err)
-		os.Exit(1)
+		return cfg, errors.Wrapf(err, "[SetP2pPort %d]", p2p_port)
 	}
 
 	mnemonic, err := cmd.Flags().GetString("mnemonic")
 	if err != nil {
-		return cfg, err
+		return cfg, errors.Wrapf(err, "[cmd.Flags().GetString(\"mnemonic\")]")
 	}
 	if mnemonic == "" {
-		log.Println("Please enter the mnemonic of the staking account:")
+		out.Input("Please enter the mnemonic of the staking account:")
 		for {
 			pwd, err := gopass.GetPasswdMasked()
 			if err != nil {
 				if err.Error() == "interrupted" || err.Error() == "interrupt" || err.Error() == "killed" {
 					os.Exit(0)
 				}
-				log.Println("Invalid mnemonic, please check and re-enter:")
+				out.Input("Invalid mnemonic, please check and re-enter:")
 				continue
 			}
 			if len(pwd) == 0 {
-				log.Println("The mnemonic you entered is empty, please re-enter:")
+				out.Input("The mnemonic you entered is empty, please re-enter:")
 				continue
 			}
 			err = cfg.SetMnemonic(string(pwd))
 			if err != nil {
-				log.Println("Invalid mnemonic, please check and re-enter:")
+				out.Input("Invalid mnemonic, please check and re-enter:")
 				continue
 			}
 			break
@@ -269,8 +261,7 @@ func buildConfigFile(cmd *cobra.Command) (confile.Confile, error) {
 	} else {
 		err = cfg.SetMnemonic(mnemonic)
 		if err != nil {
-			log.Println("invalid mnemonic")
-			os.Exit(1)
+			return cfg, errors.Wrapf(err, "[SetMnemonic] [%s]", mnemonic)
 		}
 	}
 	return cfg, nil
@@ -300,23 +291,23 @@ func buildAuthenticationConfig(cmd *cobra.Command) (confile.Confile, error) {
 	}
 	cfg.SetRpcAddr(rpc)
 
-	log.Println("Please enter the mnemonic of the staking account:")
+	out.Input("Please enter the mnemonic of the staking account:")
 	for {
 		pwd, err := gopass.GetPasswdMasked()
 		if err != nil {
 			if err.Error() == "interrupted" || err.Error() == "interrupt" || err.Error() == "killed" {
 				os.Exit(0)
 			}
-			log.Println("Invalid mnemonic, please check and re-enter:")
+			out.Input("Invalid mnemonic, please check and re-enter:")
 			continue
 		}
 		if len(pwd) == 0 {
-			log.Println("The mnemonic you entered is empty, please re-enter:")
+			out.Input("The mnemonic you entered is empty, please re-enter:")
 			continue
 		}
 		err = cfg.SetMnemonic(string(pwd))
 		if err != nil {
-			log.Println("Invalid mnemonic, please check and re-enter:")
+			out.Input("Invalid mnemonic, please check and re-enter:")
 			continue
 		}
 		break

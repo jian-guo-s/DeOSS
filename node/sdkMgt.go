@@ -58,14 +58,14 @@ func (n *Node) sdkMgt(ch chan<- bool) {
 		select {
 		case <-tick_BlockInterval.C:
 			if !n.GetChainState() {
-				n.Discover("err", pattern.ERR_RPC_CONNECTION.Error())
+				n.Log("err", pattern.ERR_RPC_CONNECTION.Error())
 				err = n.Reconnect()
 				if err != nil {
 					log.Println(pattern.ERR_RPC_CONNECTION)
-					n.Discover("err", pattern.ERR_RPC_CONNECTION.Error())
+					n.Log("err", pattern.ERR_RPC_CONNECTION.Error())
 				} else {
 					log.Println("rpc reconnection successful")
-					n.Discover("info", "rpc reconnection successfully")
+					n.Log("info", "rpc reconnection successfully")
 				}
 			}
 		case <-tick_60s.C:
@@ -78,7 +78,7 @@ func (n *Node) sdkMgt(ch chan<- bool) {
 				if err != nil {
 					continue
 				}
-				err = n.Connect(n.GetRootCtx(), *addrInfo)
+				err = n.Connect(n.GetCtxQueryFromCtxCancel(), *addrInfo)
 				if err != nil {
 					continue
 				}

@@ -2,15 +2,33 @@
 
 DeOSS ( Decentralized Object Storage Service ) is a decentralized object-based mass storage service that provides low-cost, secure and scalable distributed data storage services for the web3 domain.
 
-## Reporting a Vulnerability
+## 📝 Reporting a Vulnerability
 If you find out any system bugs or you have a better suggestions, please send an email to frode@cess.one or join [CESS discord](https://discord.gg/mYHTMfBwNS) to communicate with us.
 
-## System Requirements
+## 📢 Announcement
+**CESS test network rpc endpoints**
+```
+wss://testnet-rpc0.cess.cloud/ws/
+wss://testnet-rpc1.cess.cloud/ws/
+wss://testnet-rpc2.cess.cloud/ws/
+```
+**CESS test network bootstrap node**
+```
+_dnsaddr.boot-kldr-testnet.cess.cloud
+```
+
+### 🚰 CESS test network faucet
+```
+https://testnet-faucet.cess.cloud/
+```
+
+## :warning: Attention
+The following commands are executed with root privileges, if the prompt `Permission denied` appears, you need to switch to root privileges, or add `sudo` at the top of these commands.
+
+## ⚙ System configuration
+### System requirements
 - Linux 64-bit Intel/AMD
 
-> :warning: The following commands are executed with root privileges, if the prompt `Permission denied` appears, you need to switch to root privileges, or add `sudo` at the top of these commands.
-
-## System configuration
 ### Install application tools
 
 For the Debian and  ubuntu families of linux systems:
@@ -59,9 +77,17 @@ iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
 service iptables restart
 ```
 
-## Build from source
+## 🏗 Get the binary program
+### Method one
+Download the latest release of the binary application directly at：
+```
+wget https://github.com/CESSProject/DeOSS/releases/download/v0.2.3/deoss
+```
 
-### Step 1: Install go
+### Method two
+Compile the binary program from the DeOSS source code and follow the process as follows:
+
+**1) install go**
 
 DeOSS requires [Go 1.19](https://golang.org/dl/) or higher, See the [official Golang installation instructions](https://golang.org/doc/install).
 
@@ -75,29 +101,24 @@ Users in China can add go proxy to speed up the download:
 go env -w GOPROXY="https://goproxy.cn,direct"
 ```
 
-### Step 2: Clone code
+**2) clone code**
 ```
 git clone https://github.com/CESSProject/DeOSS.git
 ```
 
-Run unit test:
+**3) compile code**
 ```
 cd DeOSS/
-go test -v ./...
-```
-
-###  Step 3: Build a deoss
-```
 go build -o deoss cmd/main.go
 ```
 
-###  Step 4:  Grant execute permission
+**4) Grant execute permission**
 
 ```shell
 chmod +x deoss
 ```
 
-## Configure Wallet
+## 💰 Configure Wallet
 
 ### Step 1: create a wallet account
 The wallet is your unique identity in the cess network, it allows you to do transactions with the cess chain, provided that you have some balance in your wallet.
@@ -134,7 +155,7 @@ P2P_Port: 4001
 HTTP_Port: 8080
 ```
 
-## Start deoss service
+## 🟢 Start deoss service
 Backend operation mode:
 ```shell
 nohup ./deoss run 2>&1 &
@@ -150,7 +171,7 @@ nohup ./deoss run 2>&1 &
 ./deoss exit
 ```
 
-# Usage for DeOSS API
+# 📖 Usage for DeOSS API
 
 The public API endpoint URL of DeOSS is the server you deploy, All endpoints described in this document should be made relative to this root URL,The following example uses URL instead.
 
