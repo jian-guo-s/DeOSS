@@ -6,16 +6,24 @@ DeOSS ( Decentralized Object Storage Service ) is a decentralized object-based m
 If you find out any system bugs or you have a better suggestions, please send an email to frode@cess.one or join [CESS discord](https://discord.gg/mYHTMfBwNS) to communicate with us.
 
 ## 📢 Announcement
-**CESS test network rpc endpoints**
+### CESS test network rpc endpoints
 ```
 wss://testnet-rpc0.cess.cloud/ws/
 wss://testnet-rpc1.cess.cloud/ws/
 wss://testnet-rpc2.cess.cloud/ws/
 ```
-**CESS test network bootstrap node**
+### CESS test network bootstrap node
 ```
 _dnsaddr.boot-kldr-testnet.cess.cloud
 ```
+
+### CESS test network public gateway
+
+| Address | `http://deoss-pub-gateway.cess.cloud/`           |
+| ------- | ------------------------------------------------- |
+
+| Account | `cXhwBytXqrZLr1qM5NHJhCzEMckSTzNKw17ci2aHft6ETSQm9` |
+| ------- | --------------------------------------------------- |
 
 ### 🚰 CESS test network faucet
 ```
@@ -81,7 +89,7 @@ service iptables restart
 ### Method one
 Download the latest release of the binary application directly at：
 ```
-wget https://github.com/CESSProject/DeOSS/releases/download/v0.2.3/deoss
+wget https://github.com/CESSProject/DeOSS/releases/download/v0.3.1/deoss
 ```
 
 ### Method two
@@ -140,11 +148,14 @@ The contents of the configuration file template are as follows. The contents ins
 ```yaml
 # The rpc endpoint of the chain node
 Rpc:
+  # test network
   - "wss://testnet-rpc0.cess.cloud/ws/"
   - "wss://testnet-rpc1.cess.cloud/ws/"
+  - "wss://testnet-rpc2.cess.cloud/ws/"
 # Bootstrap Nodes
 Boot:
-  - "_dnsaddr.bootstrap-kldr.cess.cloud"
+  # test network
+  - "_dnsaddr.boot-kldr-testnet.cess.cloud"
 # Account mnemonic
 Mnemonic: "xxx xxx ... xxx"
 # Service workspace
@@ -155,18 +166,25 @@ P2P_Port: 4001
 HTTP_Port: 8080
 ```
 
-## 🟢 Start deoss service
-Backend operation mode:
+## 🟢 Usage for DeOSS
+###  start deoss service
+Backend operation mode (the default configuration file is in the current directory):
 ```shell
 nohup ./deoss run 2>&1 &
 ```
 
-## View deoss status
+### view deoss status
 ```
 ./deoss stat
++-------------------+------------------------------------------------------+
+| role              | deoss                                                |
+| peer id           | 12D3KooWFAcDpT7vTtbsS361P14z8LpgxPMRywQr19sAdNfdDBYE |
+| signature account | cXhwBytXqrZLr1qM5NHJhCzEMckSTzNKw17ci2aHft6ETSQm9    |
++-------------------+------------------------------------------------------+
 ```
 
-## Exit the cess network
+### exit the cess network
+It is generally not recommended to use this command：
 ```
 ./deoss exit
 ```

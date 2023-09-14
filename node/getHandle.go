@@ -80,6 +80,35 @@ func (n *Node) getHandle(c *gin.Context) {
 		return
 	}
 
+	if queryName == "peers" {
+		n.Query("info", fmt.Sprintf("[%s] Query peers", clientIp))
+		_, err := os.Stat(n.peersPath)
+		if err != nil {
+			buf := n.EncodePeers()
+			c.JSON(http.StatusOK, string(buf))
+			return
+		}
+		c.File(n.peersPath)
+		return
+	}
+
+	if queryName == "file" {
+		fid := c.Request.Header.Get(HTTPHeader_Fid)
+		if fid == "" || len(fid) != len(pattern.FileHash{}) {
+			n.Query("err", fmt.Sprintf("[%s] invalid fid: %s", clientIp, fid))
+			c.JSON(http.StatusBadRequest, "invalid fid")
+			return
+		}
+		path := utils.FindFile(n.GetDirs().FileDir, fid)
+		if path == "" {
+			n.Query("err", fmt.Sprintf("[%s] not found: %s", clientIp, fid))
+			c.JSON(http.StatusNotFound, ERR_NotFound)
+			return
+		}
+		c.JSON(http.StatusOK, nil)
+		return
+	}
+
 	if len(queryName) != len(pattern.FileHash{}) {
 		account := c.Request.Header.Get(HTTPHeader_Account)
 		if account == "" {
@@ -181,8 +210,8 @@ func (n *Node) getHandle(c *gin.Context) {
 					return
 				}
 			}
-			n.Query("info", fmt.Sprintf("[%s] Query file [%s] info: Data is being stored", clientIp, queryName))
-			c.JSON(http.StatusOK, "Data is being stored")
+			n.Query("info", fmt.Sprintf("[%s] Query file [%s] info: storage order created", clientIp, queryName))
+			c.JSON(http.StatusOK, "storage order created")
 			return
 		}
 
@@ -223,12 +252,72 @@ func (n *Node) getHandle(c *gin.Context) {
 	// download file
 	if operation == "download" {
 		var err error
-		dir := n.GetDirs().FileDir
+		var size uint64
 		n.Query("info", fmt.Sprintf("[%s] Download file [%s]", clientIp, queryName))
-		fpath := utils.FindFile(dir, queryName)
-		if fpath != "" {
-			n.Query("info", fmt.Sprintf("[%s] Download file [%s] from cache", clientIp, queryName))
-			c.File(fpath)
+		fpath := utils.FindFile(n.GetDirs().FileDir, queryName)
+		fstat, err := os.Stat(fpath)
+		if err == nil {
+			if fstat.Size() > 0 {
+				n.Query("info", fmt.Sprintf("[%s] Download file [%s] from cache", clientIp, queryName))
+				c.File(fpath)
+				return
+			} else {
+				os.Remove(fpath)
+			}
+		}
+		var completion bool
+		fmeta, err := n.QueryFileMetadata(queryName)
+		if err != nil {
+			if err.Error() != pattern.ERR_Empty {
+				n.Query("err", fmt.Sprintf("[%s] Query file [%s] info: %v", clientIp, queryName, err))
+				c.JSON(http.StatusInternalServerError, ERR_RpcFailed)
+				return
+			}
+			order, err := n.QueryStorageOrder(queryName)
+			if err != nil {
+				if err.Error() != pattern.ERR_Empty {
+					n.Query("err", fmt.Sprintf("[%s] Query file [%s] info: %v", clientIp, queryName, err))
+					c.JSON(http.StatusInternalServerError, ERR_RpcFailed)
+					return
+				}
+				n.Query("err", fmt.Sprintf("[%s] Query file [%s] info: Not found", clientIp, queryName))
+				c.JSON(http.StatusNotFound, ERR_NotFound)
+				return
+			} else {
+				size = order.FileSize.Uint64()
+			}
+		} else {
+			completion = true
+			size = fmeta.FileSize.Uint64()
+		}
+
+		fpath = filepath.Join(n.GetDirs().FileDir, queryName)
+		peerList, _ := n.QueryDeossPeerIdList()
+		if len(peerList) > 0 {
+			for _, v := range peerList {
+				addr, ok := n.GetPeer(v)
+				if !ok {
+					continue
+				}
+				if n.ID().Pretty() == v {
+					continue
+				}
+				err = n.Connect(n.GetCtxQueryFromCtxCancel(), addr)
+				if err != nil {
+					continue
+				}
+				err = n.ReadDataAction(addr.ID, queryName, queryName, fpath, int64(size))
+				if err != nil {
+					continue
+				}
+				c.File(fpath)
+				return
+			}
+		}
+
+		if !completion {
+			n.Query("err", fmt.Sprintf("[%s] Download file [%s] : %v", clientIp, queryName, "During the order transaction, please go to the original deoss to download the file."))
+			c.JSON(http.StatusInternalServerError, "During the order transaction, please go to the original deoss to download the file.")
 			return
 		} else {
 			dirPath := strings.Replace(dir, "/file", "/catch", -1)
@@ -268,8 +357,8 @@ func (n *Node) getHandle(c *gin.Context) {
 			}
 		}
 
-		//Download from miner
-		fpath, err = n.fetchFiles(queryName, dir)
+		// download from miner
+		fpath, err = n.fetchFiles(queryName, n.GetDirs().FileDir)
 		if err != nil {
 			n.Query("err", fmt.Sprintf("[%s] Download file [%s] : %v", clientIp, queryName, err))
 			c.JSON(http.StatusInternalServerError, "File download failed, please try again later.")

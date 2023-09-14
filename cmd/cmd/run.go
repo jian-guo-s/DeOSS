@@ -26,6 +26,7 @@ import (
 	"github.com/CESSProject/cess-go-sdk/core/pattern"
 	sutils "github.com/CESSProject/cess-go-sdk/core/utils"
 	"github.com/CESSProject/p2p-go/config"
+	"github.com/CESSProject/p2p-go/core"
 	"github.com/CESSProject/p2p-go/out"
 	"github.com/howeyc/gopass"
 	"github.com/pkg/errors"
@@ -40,7 +41,10 @@ func cmd_run_func(cmd *cobra.Command, args []string) {
 		err            error
 		logDir         string
 		dbDir          string
+		trackDir       string
+		fadebackDir    string
 		protocolPrefix string
+		bootEnv        string
 		syncSt         pattern.SysSyncState
 		n              = node.New()
 	)
@@ -49,6 +53,11 @@ func cmd_run_func(cmd *cobra.Command, args []string) {
 	n.Confile, err = buildConfigFile(cmd)
 	if err != nil {
 		out.Err(err.Error())
+		os.Exit(1)
+	}
+
+	if !core.FreeLocalPort(uint32(n.GetHttpPort())) {
+		out.Err(fmt.Sprintf("port [%d] is in use", n.GetHttpPort()))
 		os.Exit(1)
 	}
 
@@ -63,19 +72,19 @@ func cmd_run_func(cmd *cobra.Command, args []string) {
 	boots := n.GetBootNodes()
 	for _, v := range boots {
 		if strings.Contains(v, "testnet") {
-			out.Tip("Test network")
+			bootEnv = "cess-testnet"
 			protocolPrefix = config.TestnetProtocolPrefix
 			break
 		} else if strings.Contains(v, "mainnet") {
-			out.Tip("Main network")
+			bootEnv = "cess-mainnet"
 			protocolPrefix = config.MainnetProtocolPrefix
 			break
 		} else if strings.Contains(v, "devnet") {
-			out.Tip("Dev network")
+			bootEnv = "cess-devnet"
 			protocolPrefix = config.DevnetProtocolPrefix
 			break
 		} else {
-			out.Tip("Unknown network")
+			bootEnv = "unknown"
 		}
 	}
 
@@ -94,6 +103,26 @@ func cmd_run_func(cmd *cobra.Command, args []string) {
 	if err != nil {
 		out.Err(err.Error())
 		os.Exit(1)
+	}
+
+	out.Tip(fmt.Sprintf("chain network: %s", n.GetNetworkEnv()))
+	out.Tip(fmt.Sprintf("p2p network: %s", bootEnv))
+	if strings.Contains(bootEnv, "test") {
+		if !strings.Contains(n.GetNetworkEnv(), "test") {
+			out.Warn("chain and p2p are not in the same network")
+		}
+	}
+
+	if strings.Contains(bootEnv, "main") {
+		if !strings.Contains(n.GetNetworkEnv(), "main") {
+			out.Warn("chain and p2p are not in the same network")
+		}
+	}
+
+	if strings.Contains(bootEnv, "dev") {
+		if !strings.Contains(n.GetNetworkEnv(), "dev") {
+			out.Warn("chain and p2p are not in the same network")
+		}
 	}
 
 	for {
@@ -120,7 +149,7 @@ func cmd_run_func(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	_, _, err = n.Register(n.GetRoleName(), n.GetPeerPublickey(), "", 0)
+	_, err = n.RegisterOrUpdateDeoss(n.GetPeerPublickey())
 	if err != nil {
 		out.Err(fmt.Sprintf("Register or update err: %v", err))
 		os.Exit(1)
@@ -130,11 +159,13 @@ func cmd_run_func(cmd *cobra.Command, args []string) {
 		n.RebuildDirs()
 	}
 
-	logDir, dbDir, n.TrackDir, err = buildDir(n.Workspace())
+	logDir, dbDir, trackDir, fadebackDir, err = buildDir(n.Workspace())
 	if err != nil {
 		out.Err(err.Error())
 		os.Exit(1)
 	}
+	n.SetTrackDir(trackDir)
+	n.SetFadebackDir(fadebackDir)
 
 	// Build cache
 	n.Cache, err = buildCache(dbDir)
@@ -151,6 +182,7 @@ func cmd_run_func(cmd *cobra.Command, args []string) {
 	}
 
 	out.Tip(n.GetProtocolPrefix())
+	out.Tip(n.Workspace())
 
 	// run
 	n.Run()
@@ -315,23 +347,28 @@ func buildAuthenticationConfig(cmd *cobra.Command) (confile.Confile, error) {
 	return cfg, nil
 }
 
-func buildDir(workspace string) (string, string, string, error) {
+func buildDir(workspace string) (string, string, string, string, error) {
 	logDir := filepath.Join(workspace, configs.Log)
 	if err := os.MkdirAll(logDir, pattern.DirMode); err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 
 	cacheDir := filepath.Join(workspace, configs.Db)
 	if err := os.MkdirAll(cacheDir, pattern.DirMode); err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 
 	trackDir := filepath.Join(workspace, configs.Track)
 	if err := os.MkdirAll(trackDir, pattern.DirMode); err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 
-	return logDir, cacheDir, trackDir, nil
+	fadebackDir := filepath.Join(workspace, configs.Fadeback)
+	if err := os.MkdirAll(fadebackDir, pattern.DirMode); err != nil {
+		return "", "", "", "", err
+	}
+
+	return logDir, cacheDir, trackDir, fadebackDir, nil
 }
 
 func buildCache(cacheDir string) (db.Cache, error) {

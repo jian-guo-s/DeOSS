@@ -8,7 +8,7 @@
 package node
 
 import (
-	"github.com/bytedance/sonic"
+	"encoding/json"
 
 	"fmt"
 	"io"
@@ -51,9 +51,15 @@ func (n *Node) putHandle(c *gin.Context) {
 	token := c.Request.Header.Get(HTTPHeader_Authorization)
 	account, pkey, err = n.verifyToken(token, respMsg)
 	if err != nil {
-		n.Upfile("info", fmt.Sprintf("[%v] %v", clientIp, err))
-		c.JSON(respMsg.Code, err.Error())
-		return
+		account = c.Request.Header.Get(HTTPHeader_Account)
+		message := c.Request.Header.Get(HTTPHeader_Message)
+		signature := c.Request.Header.Get(HTTPHeader_Signature)
+		pkey, err = n.verifySignature(account, message, signature)
+		if err != nil {
+			n.Upfile("info", fmt.Sprintf("[%v] %v", clientIp, err))
+			c.JSON(respMsg.Code, err.Error())
+			return
+		}
 	}
 
 	// verify the bucket name
@@ -65,8 +71,15 @@ func (n *Node) putHandle(c *gin.Context) {
 	}
 
 	// verify the space is authorized
-	authAcc, _ := n.QuaryAuthorizedAccount(pkey)
-	if n.GetSignatureAcc() != authAcc {
+	var flag bool
+	authAccs, _ := n.QuaryAuthorizedAccounts(pkey)
+	for _, v := range authAccs {
+		if n.GetSignatureAcc() == v {
+			flag = true
+			break
+		}
+	}
+	if !flag {
 		n.Upfile("info", fmt.Sprintf("[%v] %v", clientIp, ERR_SpaceNotAuth))
 		c.JSON(http.StatusForbidden, ERR_SpaceNotAuth)
 		return
@@ -157,10 +170,12 @@ func (n *Node) putHandle(c *gin.Context) {
 	if err != nil {
 		n.Upfile("err", fmt.Sprintf("[%v] %v", clientIp, err.Error()))
 		if strings.Contains(err.Error(), "no space left on device") {
+			n.Upfile("err", fmt.Sprintf("[%v] %v", clientIp, err.Error()))
 			c.JSON(http.StatusForbidden, ERR_DeviceSpaceNoLeft)
 			return
 		}
 		if err.Error() != http.ErrNotMultipart.ErrorString {
+			n.Upfile("err", fmt.Sprintf("[%v] %v", clientIp, err.Error()))
 			c.JSON(http.StatusBadRequest, err.Error())
 			return
 		}
@@ -205,12 +220,21 @@ func (n *Node) putHandle(c *gin.Context) {
 		f.Close()
 	}
 
+	if filename == "" {
+		filename = "null"
+	}
+
+	if len(filename) < 3 {
+		filename += ".ces"
+	}
+
 	fstat, err := os.Stat(fpath)
 	if err != nil {
 		n.Upfile("err", fmt.Sprintf("[%v] %v", clientIp, err))
 		c.JSON(http.StatusInternalServerError, ERR_InternalServer)
 		return
 	}
+
 	if fstat.Size() == 0 {
 		n.Upfile("err", fmt.Sprintf("[%v] %v", clientIp, ERR_BodyEmptyFile))
 		c.JSON(http.StatusBadRequest, ERR_BodyEmptyFile)
@@ -298,7 +322,7 @@ func (n *Node) putHandle(c *gin.Context) {
 		Duplicate:   false,
 	}
 
-	b, err := sonic.Marshal(recordInfo)
+	b, err := json.Marshal(recordInfo)
 	if err != nil {
 		n.Upfile("err", fmt.Sprintf("[%v] %v", clientIp, err))
 		c.JSON(http.StatusInternalServerError, ERR_InternalServer)
@@ -339,7 +363,7 @@ func (n *Node) deduplication(pkey []byte, segmentInfo []pattern.SegmentDataInfo,
 			return true, nil
 		}
 
-		_, err = os.Stat(filepath.Join(n.TrackDir, roothash))
+		_, err = os.Stat(filepath.Join(n.trackDir, roothash))
 		if err == nil {
 			return false, errors.New(ERR_DuplicateOrder)
 		}
@@ -354,13 +378,13 @@ func (n *Node) deduplication(pkey []byte, segmentInfo []pattern.SegmentDataInfo,
 		record.Count = 0
 		record.Duplicate = true
 
-		f, err := os.Create(filepath.Join(n.TrackDir, roothash))
+		f, err := os.Create(filepath.Join(n.trackDir, roothash))
 		if err != nil {
 			return false, errors.Wrapf(err, "[create file]")
 		}
 		defer f.Close()
 
-		b, err := sonic.Marshal(&record)
+		b, err := json.Marshal(&record)
 		if err != nil {
 			return false, errors.Wrapf(err, "[marshal data]")
 		}
