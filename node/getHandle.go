@@ -320,6 +320,7 @@ func (n *Node) getHandle(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, "During the order transaction, please go to the original deoss to download the file.")
 			return
 		} else {
+			dir := n.GetDirs().FileDir
 			dirPath := strings.Replace(dir, "/file", "/catch", -1)
 			filePath := filepath.Join(dirPath, queryName)
 			_, err = os.Stat(filePath)
